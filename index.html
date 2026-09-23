@@ -429,17 +429,30 @@
 
   .ucapan-marquee-outer{
     margin-top:34px;
-    overflow:hidden;
+    overflow-x:auto;
+    overflow-y:hidden;
+    -webkit-overflow-scrolling:touch;
+    overscroll-behavior-x:contain;
+    scrollbar-width:none;
+    cursor:grab;
     position:relative;
     -webkit-mask-image:linear-gradient(to right, transparent 0, black 28px, black calc(100% - 28px), transparent 100%);
     mask-image:linear-gradient(to right, transparent 0, black 28px, black calc(100% - 28px), transparent 100%);
   }
+  .ucapan-marquee-outer::-webkit-scrollbar{display:none;}
+  .ucapan-marquee-outer.dragging{cursor:grabbing;user-select:none;}
   .ucapan-marquee-track{
     display:flex;
     gap:14px;
     width:max-content;
-    will-change:transform;
   }
+  .ucapan-hint{
+    text-align:center;font-size:12px;color:rgba(243,236,216,.45);
+    margin-top:12px;letter-spacing:.03em;display:none;
+  }
+  .ucapan-hint.show{display:block;}
+  .ucapan-marquee-outer.static{-webkit-mask-image:none;mask-image:none;overflow:hidden;cursor:default;}
+  .ucapan-marquee-outer.static .ucapan-marquee-track{width:100%;justify-content:center;flex-wrap:wrap;}
   .ucapan-empty{text-align:center;font-size:13.5px;color:rgba(243,236,216,.55);padding:10px 0;}
   .ucapan-card{
     border:1px solid rgba(169,121,60,.4);
@@ -454,13 +467,6 @@
   .ucapan-card .ms{
     font-size:14px;color:rgba(243,236,216,.85);margin-top:6px;line-height:1.55;white-space:pre-wrap;
     display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden;
-  }
-  @keyframes ucapanMarqueeScroll{
-    from{transform:translateX(0);}
-    to{transform:translateX(-50%);}
-  }
-  @media (prefers-reduced-motion: reduce){
-    .ucapan-marquee-track{animation:none !important;}
   }
 
   #penutup{text-align:center;}
@@ -606,6 +612,7 @@
       <div id="ucapanMarquee" class="ucapan-marquee-outer">
         <div id="ucapanTrack" class="ucapan-marquee-track"></div>
       </div>
+      <div class="ucapan-hint" id="ucapanHint">Geser untuk membaca ucapan lainnya</div>
       <div class="ucapan-empty" id="ucapanEmpty">Memuat ucapan…</div>
     </div>
   </section>
@@ -897,10 +904,71 @@
     var marqueeOuter = document.getElementById("ucapanMarquee");
     var emptyEl = document.getElementById("ucapanEmpty");
 
-    marqueeOuter.addEventListener("mouseenter", function(){ trackEl.style.animationPlayState = "paused"; });
-    marqueeOuter.addEventListener("mouseleave", function(){ trackEl.style.animationPlayState = "running"; });
-    marqueeOuter.addEventListener("touchstart", function(){ trackEl.style.animationPlayState = "paused"; }, {passive:true});
-    marqueeOuter.addEventListener("touchend", function(){ trackEl.style.animationPlayState = "running"; });
+    var hintEl = document.getElementById("ucapanHint");
+
+    /* ticker: jalan otomatis, bisa digeser manual, lanjut sendiri setelah dilepas */
+    var tickerOn = false;      // true kalau ucapan tidak muat layar (mode berjalan)
+    var loopWidth = 0;         // lebar satu set ucapan (sebelum gandaan)
+    var pos = 0;               // posisi geser (desimal, supaya halus)
+    var touching = false;
+    var hovering = false;
+    var resumeAt = 0;
+    var RESUME_DELAY = 2500;   // jeda sebelum jalan lagi setelah dilepas (ms)
+    var SPEED = 36;            // px per detik
+    var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    function holdThenResume(){ resumeAt = performance.now() + RESUME_DELAY; }
+    /* posisi dijaga di set tengah (dari 3 set), jadi selalu ada ruang geser ke kiri & kanan */
+    function wrap(){
+      if (loopWidth <= 0) return;
+      if (pos >= 2 * loopWidth) pos -= loopWidth;
+      if (pos < loopWidth) pos += loopWidth;
+      marqueeOuter.scrollLeft = pos;
+    }
+
+    marqueeOuter.addEventListener("touchstart", function(){ touching = true; }, {passive:true});
+    marqueeOuter.addEventListener("touchend", function(){ touching = false; holdThenResume(); }, {passive:true});
+    marqueeOuter.addEventListener("touchcancel", function(){ touching = false; holdThenResume(); }, {passive:true});
+    marqueeOuter.addEventListener("mouseenter", function(){ hovering = true; });
+    marqueeOuter.addEventListener("mouseleave", function(){ hovering = false; holdThenResume(); });
+    marqueeOuter.addEventListener("wheel", holdThenResume, {passive:true});
+
+    /* geser pakai mouse (laptop/PC) */
+    var dragStartX = 0, dragStartLeft = 0, mouseDragging = false;
+    marqueeOuter.addEventListener("mousedown", function(e){
+      if (!tickerOn) return;
+      mouseDragging = true; touching = true;
+      dragStartX = e.clientX; dragStartLeft = marqueeOuter.scrollLeft;
+      marqueeOuter.classList.add("dragging");
+      e.preventDefault();
+    });
+    window.addEventListener("mousemove", function(e){
+      if (!mouseDragging) return;
+      marqueeOuter.scrollLeft = dragStartLeft - (e.clientX - dragStartX);
+    });
+    window.addEventListener("mouseup", function(){
+      if (!mouseDragging) return;
+      mouseDragging = false; touching = false;
+      marqueeOuter.classList.remove("dragging");
+      holdThenResume();
+    });
+
+    var lastT = null;
+    function tick(now){
+      if (tickerOn && loopWidth > 0){
+        var holding = touching || hovering || now < resumeAt || reduceMotion;
+        if (holding){
+          pos = marqueeOuter.scrollLeft;   // ikuti posisi hasil geseran tamu
+          if (!touching && (pos >= 2 * loopWidth || pos < loopWidth)) wrap();
+        } else if (lastT !== null){
+          pos += SPEED * (now - lastT) / 1000;
+          wrap();
+        }
+      }
+      lastT = now;
+      requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
 
     function fmtTime(ts){
       if(!ts || !ts.toDate) return "";
@@ -928,6 +996,47 @@
       return card;
     }
 
+    var currentDocs = [];
+    function renderTrack(){
+      var keepPos = pos;
+      tickerOn = false;
+      loopWidth = 0;
+      trackEl.innerHTML = "";
+      marqueeOuter.classList.remove("static");
+      hintEl.classList.remove("show");
+      if (!currentDocs.length) return;
+      // set asli
+      currentDocs.forEach(function(data){ trackEl.appendChild(buildCard(data)); });
+      // kalau semua ucapan muat di layar: tampil diam di tengah, tanpa gandaan
+      if (trackEl.scrollWidth <= marqueeOuter.clientWidth){
+        marqueeOuter.classList.add("static");
+        marqueeOuter.scrollLeft = 0;
+        pos = 0;
+        return;
+      }
+      // kalau tidak muat: gandakan tiga kali supaya bisa digeser ke dua arah tanpa mentok
+      var n = currentDocs.length;
+      for (var r = 0; r < 2; r++){
+        currentDocs.forEach(function(data){ trackEl.appendChild(buildCard(data)); });
+      }
+      loopWidth = trackEl.children[n].offsetLeft - trackEl.children[0].offsetLeft;
+      pos = loopWidth + (((keepPos % loopWidth) + loopWidth) % loopWidth);
+      marqueeOuter.scrollLeft = pos;
+      hintEl.classList.add("show");
+      tickerOn = true;
+    }
+    var resizeTimer = null;
+    var lastWidth = marqueeOuter.clientWidth;
+    window.addEventListener("resize", function(){
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(function(){
+        if (marqueeOuter.clientWidth !== lastWidth){
+          lastWidth = marqueeOuter.clientWidth;
+          renderTrack();
+        }
+      }, 250);
+    });
+
     window.ucapanDb.collection("ucapan").orderBy("createdAt","desc").limit(100)
       .onSnapshot(function(snapshot){
         trackEl.style.animation = "none";
@@ -940,19 +1049,9 @@
         }
         emptyEl.style.display = "none";
         marqueeOuter.style.display = "";
-        var docs = [];
-        snapshot.forEach(function(doc){ docs.push(doc.data()); });
-        // set asli
-        docs.forEach(function(data){ trackEl.appendChild(buildCard(data)); });
-        // set duplikat, supaya loop mulus tanpa jeda
-        docs.forEach(function(data){ trackEl.appendChild(buildCard(data)); });
-
-        requestAnimationFrame(function(){
-          var totalWidth = trackEl.scrollWidth / 2;
-          var speedPxPerSec = 36;
-          var duration = Math.max(totalWidth / speedPxPerSec, 10);
-          trackEl.style.animation = "ucapanMarqueeScroll " + duration + "s linear infinite";
-        });
+        currentDocs = [];
+        snapshot.forEach(function(doc){ currentDocs.push(doc.data()); });
+        renderTrack();
       }, function(){
         marqueeOuter.style.display = "none";
         emptyEl.textContent = "Gagal memuat ucapan.";
