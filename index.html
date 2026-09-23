@@ -698,6 +698,18 @@
     if (bgm.paused){ tryPlayMusic(); } else { bgm.pause(); setMusicIcon(false); }
   });
 
+  /* musik berhenti saat tamu pindah aplikasi/tab, lanjut lagi saat kembali */
+  var resumeMusicOnReturn = false;
+  document.addEventListener("visibilitychange", function(){
+    if (document.hidden){
+      resumeMusicOnReturn = !bgm.paused;
+      if (resumeMusicOnReturn){ bgm.pause(); setMusicIcon(false); }
+    } else if (resumeMusicOnReturn){
+      resumeMusicOnReturn = false;
+      tryPlayMusic();
+    }
+  });
+
   /* coba autoplay musik sedini mungkin (langsung di cover) */
   tryPlayMusic().then(function(started){
     if (!started){
@@ -738,7 +750,7 @@
         lastTime = null; // reset supaya tidak lompat saat lanjut lagi
       } else {
         if (lastTime !== null){
-          var dt = (now - lastTime) / 1000;
+          var dt = Math.min((now - lastTime) / 1000, 0.1);
           window.scrollBy(0, speedPxPerSec * dt);
         }
         lastTime = now;
@@ -961,7 +973,7 @@
           pos = marqueeOuter.scrollLeft;   // ikuti posisi hasil geseran tamu
           if (!touching && (pos >= 2 * loopWidth || pos < loopWidth)) wrap();
         } else if (lastT !== null){
-          pos += SPEED * (now - lastT) / 1000;
+          pos += SPEED * Math.min((now - lastT) / 1000, 0.1);
           wrap();
         }
       }
