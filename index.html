@@ -8,7 +8,9 @@
 <meta property="og:url" content="https://thenosecrets.github.io/Undangan-Tya-Faki/">
 <meta property="og:title" content="Undangan Pernikahan Tya & Faki">
 <meta property="og:description" content="Jum'at, 27 November 2026 — Dengan penuh syukur, kami mengundang Bapak/Ibu/Saudara/i untuk hadir di pernikahan kami.">
-<meta property="og:image" content="https://thenosecrets.github.io/Undangan-Tya-Faki/cover-og.jpg">
+<meta property="og:image" content="https://thenosecrets.github.io/Undangan-Tya-Faki/thumbnail-wa.jpg">
+<meta property="og:image:width" content="1080">
+<meta property="og:image:height" content="1351">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -340,6 +342,7 @@
     font-style:italic;
   }
 
+  .cal-wrap{text-align:center;margin-top:28px;}
   .countdown{
     display:flex;
     justify-content:center;
@@ -556,6 +559,10 @@
         </div>
       </div>
 
+      <div class="cal-wrap">
+        <a class="btn" id="calBtn" target="_blank" rel="noopener">Simpan ke Kalender</a>
+      </div>
+
       <div class="countdown" id="countdown">
         <div class="box"><strong id="cd-d">00</strong><span>HARI</span></div>
         <div class="box"><strong id="cd-h">00</strong><span>JAM</span></div>
@@ -637,6 +644,16 @@
   document.querySelector('[data-field="resepsi-time"]').textContent = CONFIG.resepsiTime;
   document.querySelector('[data-field="resepsi-venue"]').textContent = CONFIG.resepsiVenue;
   document.getElementById("venueAddress").textContent = CONFIG.venueAddress;
+  (function(){
+    var t = "Pernikahan Tya & Faki";
+    var d = "Akad Nikah: Jum'at, 27 November 2026, 08.00 WIB s/d selesai\nTasyakuran: Sabtu–Senin, 28–30 November 2026, 08.00 WIB s/d selesai\n\nPetunjuk arah: https://www.google.com/maps/search/?api=1&query=" + CONFIG.mapsQuery;
+    document.getElementById("calBtn").href =
+      "https://calendar.google.com/calendar/render?action=TEMPLATE" +
+      "&text=" + encodeURIComponent(t) +
+      "&dates=20261127T010000Z/20261127T050000Z" +
+      "&details=" + encodeURIComponent(d) +
+      "&location=" + encodeURIComponent(CONFIG.venueAddress);
+  })();
   document.getElementById("mapBtn").href = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(CONFIG.mapsQuery);
 
   /* nama tamu dari link: ?to=Nama+Tamu */
@@ -646,6 +663,9 @@
       var raw = params.get("to") || params.get("kepada") || "";
       var name = raw.replace(/\s+/g," ").trim().slice(0,60);
       if (name){
+        window.guestNameFromLink = name;
+        var nameField = document.getElementById("ucapanName");
+        if (nameField) nameField.value = name.slice(0,80);
         document.getElementById("guestName").textContent = name;
         document.getElementById("guestBlock").classList.add("show");
       }
@@ -705,7 +725,9 @@
     var speedPxPerSec = 55;
     function step(now){
       if (!autoScrollEnabled) return;
-      if (autoScrollPaused){
+      var ae = document.activeElement;
+      var typing = ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA");
+      if (autoScrollPaused || typing){
         lastTime = null; // reset supaya tidak lompat saat lanjut lagi
       } else {
         if (lastTime !== null){
@@ -824,6 +846,15 @@
     var btn = document.getElementById("ucapanSubmitBtn");
     if (!name || !pesan){ msgEl.textContent = "Mohon isi nama dan ucapan terlebih dahulu."; return; }
     if (!window.ucapanDb){ msgEl.textContent = "Gagal terhubung ke server, coba lagi sebentar."; return; }
+    var COOLDOWN_MS = 3 * 60 * 1000;
+    var lastSent = 0;
+    try{ lastSent = parseInt(localStorage.getItem("ucapanLastSent") || "0", 10) || 0; }catch(err){}
+    var wait = COOLDOWN_MS - (Date.now() - lastSent);
+    if (wait > 0){
+      var mnt = Math.ceil(wait / 60000);
+      msgEl.textContent = "Ucapan Anda sudah terkirim. Anda bisa mengirim ucapan lagi dalam " + mnt + " menit.";
+      return;
+    }
     btn.disabled = true;
     btn.textContent = "Mengirim…";
     window.ucapanDb.collection("ucapan").add({
@@ -832,7 +863,9 @@
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     }).then(function(){
       msgEl.textContent = "Terima kasih atas ucapan dan doanya, " + name + " 💐";
+      try{ localStorage.setItem("ucapanLastSent", String(Date.now())); }catch(err){}
       document.getElementById("ucapanForm").reset();
+      if (window.guestNameFromLink) document.getElementById("ucapanName").value = window.guestNameFromLink.slice(0,80);
     }).catch(function(){
       msgEl.textContent = "Gagal mengirim, silakan coba lagi.";
     }).finally(function(){
