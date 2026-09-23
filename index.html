@@ -219,6 +219,27 @@
     color:var(--cream);
     opacity:.85;
   }
+  #cover .guest{
+    margin-top:4px;
+    text-align:center;
+    display:none;
+  }
+  #cover .guest.show{display:block;}
+  #cover .guest .lbl{
+    font-size:12.5px;
+    letter-spacing:.06em;
+    color:var(--cream);
+    opacity:.75;
+    line-height:1.5;
+  }
+  #cover .guest .gname{
+    margin-top:6px;
+    font-family:var(--font-display);
+    font-size:22px;
+    font-weight:500;
+    color:var(--cream);
+    word-break:break-word;
+  }
   #cover .to{
     margin-top:6px;
     font-size:13px;
@@ -471,6 +492,10 @@
     <div class="script">Assalamu'alaikum</div>
     <h1 class="names">Tya <em>&amp;</em> Faki</h1>
     <div class="date">27 · NOVEMBER · 2026</div>
+    <div class="guest" id="guestBlock">
+      <div class="lbl">Kepada Yth.<br>Bapak/Ibu/Saudara/i</div>
+      <div class="gname" id="guestName"></div>
+    </div>
     <button class="btn" id="openBtn">✉ &nbsp;Buka Undangan</button>
   </div>
 </div>
@@ -613,6 +638,19 @@
   document.querySelector('[data-field="resepsi-venue"]').textContent = CONFIG.resepsiVenue;
   document.getElementById("venueAddress").textContent = CONFIG.venueAddress;
   document.getElementById("mapBtn").href = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(CONFIG.mapsQuery);
+
+  /* nama tamu dari link: ?to=Nama+Tamu */
+  (function(){
+    try{
+      var params = new URLSearchParams(window.location.search);
+      var raw = params.get("to") || params.get("kepada") || "";
+      var name = raw.replace(/\s+/g," ").trim().slice(0,60);
+      if (name){
+        document.getElementById("guestName").textContent = name;
+        document.getElementById("guestBlock").classList.add("show");
+      }
+    }catch(e){}
+  })();
 
   /* open invitation */
   var cover = document.getElementById("cover");
